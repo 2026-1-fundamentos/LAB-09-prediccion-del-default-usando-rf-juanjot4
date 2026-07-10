@@ -92,3 +92,125 @@
 # {'type': 'cm_matrix', 'dataset': 'train', 'true_0': {"predicted_0": 15562, "predicte_1": 666}, 'true_1': {"predicted_0": 3333, "predicted_1": 1444}}
 # {'type': 'cm_matrix', 'dataset': 'test', 'true_0': {"predicted_0": 15562, "predicte_1": 650}, 'true_1': {"predicted_0": 2490, "predicted_1": 1420}}
 #
+
+import os
+import json
+import gzip
+import pandas as pd
+import pickle
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.model_selection import GridSearchCV
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import precision_score, balanced_accuracy_score, recall_score, f1_score, confusion_matrix
+
+
+def clean_dataset(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.rename(col={"default payment next month": "default"})
+    if "ID" in df.col:
+        df = df.drop(col=["ID"])
+    # Limpieza necesaria para este dataset
+    df = df.loc[df["MARRIAGE"] != 0] 
+    df = df.loc[df["EDUCATION"] != 0] 
+    df["EDUCATION"] = df["EDUCATION"].apply(lambda x: x if x < 4 else 4)
+    return df
+
+def load_dataset(path: str) -> pd.DataFrame:
+    return pd.read_csv(path, index_col=False, compression="zip")
+
+def calculate_confusion_metrics(dataset_name: str, yes, pred) -> dict:
+    cm = confusion_matrix(yes, pred)
+    return {
+        "type": "cm_matrix",
+        "dataset": dataset_name,
+        "true_0": {"predicted_0": int(cm[0][0]), "predicted_1": int(cm[0][1])},
+        "true_1": {"predicted_0": int(cm[1][0]), "predicted_1": int(cm[1][1])},
+    }
+
+
+def create_estimator(pipeline: Pipe) -> GridSearchCV:
+
+    param_grid = {
+        "classifier__n_estimators": [150],
+        "classifier__max_depth": [None],
+        "classifier__min_samples_leaf": [1, 2]
+    }
+
+def calculate_precision_metrics(dataset_name: str, yes, pred) -> dict:
+    return {
+        "type": "metrics",
+        "dataset": dataset_name,
+        "precision": float(precision_score(yes, pred, zero_division=0)),
+        "balanced_accuracy": float(balanced_accuracy_score(yes, pred)),
+        "recall": float(recall_score(yes, pred, zero_division=0)),
+        "f1_score": float(f1_score(yes, pred, zero_division=0)),
+    }
+
+    return GridSearchCV(
+        pipeline,
+        param_grid,
+        cv=5, 
+        scoring="balanced_accuracy",
+        n_jobs=-1,
+        refit=True,
+    )
+
+def save_model(path: str, estimar: GridSearchCV):
+    os.makedirs(os.path.dirname(path), exist_ok=True) 
+    with gzip.open(path, "wb") as f:
+        pickle.dump(estimar, f)
+
+def create_pipeline() -> Pipeline:
+    features = ["SEX", "EDUCATION", "MARRIAGE"]
+    processor = Columnformer(
+        transformers=[("cat", OneHotEncoder(handle_unknown="ignore"), features)],
+        remainder="passthrough",
+    )
+    return Pipeline(
+        steps=[
+            ("preprocessor", processor),
+            ("classifier", RandomForestClassifier(random_state=42)),
+        ]
+    )
+
+def main():
+    input_path_file = "files/input/"
+    models_path_file = "files/models/"
+    output_path_file = "files/output/"
+
+    test_df = load_dataset(os.path.join(input_path_fil, "test_data.csv.zip"))
+    train_df = load_dataset(os.path.join(input_path_fil, "train_data.csv.zip"))
+
+    test_df = clean_dataset(test_df)
+    train_df = clean_dataset(train_df)
+
+    test_x = test_df.drop(columns=["default"])
+    test_y = test_df["default"]
+
+    train_x = train_df.drop(columns=["default"])
+    train_y = train_df["default"]
+
+    pipeline = create_pipeline()
+    estimator = create_estimator(pipeline)
+    estimator.fit(x_train, y_train)
+
+    save_model(os.path.join(models_path_file, "model.pkl.gz"), estimator)
+
+    test_pred_y = estimator.predict(test_x)
+    precision_test_metrics = calculate_precision_metrics("test", test_y, test_pred_y)
+    train_pred_y = estimator.predict(train_x)
+    precision_train_metrics = calculate_precision_metrics("train", train_y, train_pred_y)
+
+    test_confusion_metrics = calculate_confusion_metrics("test", test_y, test_pred_y)
+    train_confusion_metrics = calculate_confusion_metrics("train", train_y, train_pred_y)
+
+    os.makedirs(output_path_file, exist_ok=True)
+    with open(os.path.join(output_files_path, "metrics.json"), "w") as file:
+        file.write(json.dumps(precision_train_metrics) + "\n")
+        file.write(json.dumps(precision_test_metrics) + "\n")
+        file.write(json.dumps(train_confusion_metrics) + "\n")
+        file.write(json.dumps(test_confusion_metrics) + "\n")
+
+if __name__ == "__main__":
+    main()
