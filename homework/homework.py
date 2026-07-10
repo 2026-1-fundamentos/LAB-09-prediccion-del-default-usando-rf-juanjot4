@@ -185,11 +185,11 @@ def main():
     test_df = clean_dataset(test_df)
     train_df = clean_dataset(train_df)
 
-    test_x = test_df.drop(columns=["default"])
-    test_y = test_df["default"]
+    x_test = test_df.drop(columns=["default"])
+    y_test = test_df["default"]
 
-    train_x = train_df.drop(columns=["default"])
-    train_y = train_df["default"]
+    x_train = train_df.drop(columns=["default"])
+    y_train = train_df["default"]
 
     pipeline = create_pipeline()
     estimator = create_estimator(pipeline)
@@ -197,13 +197,13 @@ def main():
 
     save_model(os.path.join(models_path_file, "model.pkl.gz"), estimator)
 
-    test_pred_y = estimator.predict(test_x)
-    precision_test_metrics = calculate_precision_metrics("test", test_y, test_pred_y)
-    train_pred_y = estimator.predict(train_x)
-    precision_train_metrics = calculate_precision_metrics("train", train_y, train_pred_y)
+    test_pred_y = estimator.predict(x_test)
+    precision_test_metrics = calculate_precision_metrics("test", y_test, test_pred_y)
+    train_pred_y = estimator.predict(x_train)
+    precision_train_metrics = calculate_precision_metrics("train", y_train, train_pred_y)
 
-    test_confusion_metrics = calculate_confusion_metrics("test", test_y, test_pred_y)
-    train_confusion_metrics = calculate_confusion_metrics("train", train_y, train_pred_y)
+    test_confusion_metrics = calculate_confusion_metrics("test", y_test, test_pred_y)
+    train_confusion_metrics = calculate_confusion_metrics("train", y_train, train_pred_y)
 
     os.makedirs(output_path_file, exist_ok=True)
     with open(os.path.join(output_files_path, "metrics.json"), "w") as file:
